@@ -113,10 +113,11 @@ void interrupt_handler(struct trapframe *tf) {
             * (4)判断打印次数，当打印次数为10时，调用<sbi.h>中的关机函数关机
             */
         clock_set_next_event();
-        num++;   
-        if (num % TICK_NUM == 0) {
+        ticks++;
+        if (ticks % TICK_NUM == 0) {
             print_ticks();
-            if (num / TICK_NUM >= 10) {
+            num++;
+            if (num >= 10) {
                 sbi_shutdown();
             }
         }
@@ -170,7 +171,8 @@ void exception_handler(struct trapframe *tf) {
              *(3)更新 tf->epc寄存器
             */
             cprintf("Exception type: breakpoint\n");
-            cpritnf("ebreak caught at 0x%u\n",tf->epc);
+            cprintf("ebreak caught at 0x%u\n",tf->epc);
+            tf->epc+=4;
             break;
         case CAUSE_MISALIGNED_LOAD:
             break;
