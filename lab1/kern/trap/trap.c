@@ -161,7 +161,13 @@ void exception_handler(struct trapframe *tf) {
             */
             cprintf("Exception type:Illegal instruction\n");
             cprintf("Illegal instruction caught at 0x%x\n",tf->epc);
-            tf->epc+=4;
+            // 判断非法指令的长度，并跳过该指令
+		    uint16_t instr = *(uint16_t *)(tf->epc);
+		    if ((instr & 0x3) != 0x3) {
+		        tf->epc += 2;  // 跳过压缩指令
+		    } else {
+		        tf->epc += 4;  // 跳过普通指令
+		    }
             break;
         case CAUSE_BREAKPOINT:
             //断点异常处理
@@ -172,7 +178,13 @@ void exception_handler(struct trapframe *tf) {
             */
             cprintf("Exception type: breakpoint\n");
             cprintf("ebreak caught at 0x%u\n",tf->epc);
-            tf->epc+=4;
+            // 判断断点指令的长度，并跳过该指令
+		    instr = *(uint16_t *)(tf->epc);
+		    if ((instr & 0x3) != 0x3) {
+		        tf->epc += 2;  // 跳过压缩指令
+		    } else {
+		        tf->epc += 4;  // 跳过普通指令
+		    }
             break;
         case CAUSE_MISALIGNED_LOAD:
             break;
