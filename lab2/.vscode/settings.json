@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "string.h": "c",
+        "default_pmm.h": "c",
+        "slub_pmm.h": "c",
+        "list.h": "c",
+        "*.tcc": "cpp",
+        "unordered_map": "cpp",
+        "numeric": "cpp",
+        "ostream": "cpp",
+        "best_fit_pmm.h": "c"
+    }
+}
