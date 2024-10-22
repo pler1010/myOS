@@ -80,6 +80,7 @@ ffffffffc0206000 SBI_CONSOLE_GETCHAR
 ffffffffc0202448 best_fit_pmm_manager
 ffffffffc020045e intr_disable
 ffffffffc0200476 print_regs
+ffffffffc0206010 free_area2
 ffffffffc02000e8 cputchar
 ffffffffc020199c memset
 ffffffffc0206008 SBI_CONSOLE_PUTCHAR
@@ -99,7 +100,6 @@ ffffffffc02000ea cputs
 ffffffffc0205000 bootstacktop
 ffffffffc0203000 bootstack
 ffffffffc02027f8 nbase
-ffffffffc0206010 free_area
 ffffffffc0201986 strchr
 ffffffffc0200244 mon_kerninfo
 ffffffffc0206440 pages
