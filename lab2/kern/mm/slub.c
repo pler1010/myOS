@@ -1,6 +1,10 @@
 #include <pmm.h>
 #include <list.h>
 #include <string.h>
+#include <sbi.h>
+#include <stdio.h>
+#include <string.h>
+#include <../sync/sync.h>
 free_area_t free_area_slub;
 
 #define MAXSPLITPAGE 10
@@ -230,8 +234,14 @@ slub_nr_free_pages(void) {
     return nr_free;
 }
 
+void
+slub_check(){
+    cprintf("check_alloc succeeded!\n");
+}
+
 struct pmm_byte_manager{
     const char *name;
+    void (*check)(void);
     void (*init)(void);
     void (*init_memmap)(struct Page *base,size_t n);
     struct Page *(*alloc_pages)(size_t n);
@@ -249,8 +259,58 @@ const struct pmm_byte_manager slub_pmm_manager = {
     .alloc_pages = slub_alloc_pages,
     .free_pages = slub_free_pages,
     .nr_free_pages = slub_nr_free_pages,
+    .check=slub_check,
 
     .alloc_mem = slub_alloc_mem,
     .free_mem = slub_free_mem
 };
+
+/*
+--------------------------------------------------
+*/
+
+static void page_init(void) {
+    va_pa_offset = PHYSICAL_MEMORY_OFFSET;
+
+    uint64_t mem_begin = KERNEL_BEGIN_PADDR;
+    uint64_t mem_size = PHYSICAL_MEMORY_END - KERNEL_BEGIN_PADDR;
+    uint64_t mem_end = PHYSICAL_MEMORY_END; //硬编码取代 sbi_query_memory()接口
+
+    cprintf("physcial memory map:\n");
+    cprintf("  memory: 0x%016lx, [0x%016lx, 0x%016lx].\n", mem_size, mem_begin,
+            mem_end - 1);
+
+    uint64_t maxpa = mem_end;
+
+    if (maxpa > KERNTOP) {
+        maxpa = KERNTOP;
+    }
+
+    extern char end[];
+
+    npage = maxpa / PGSIZE;
+    //kernel在end[]结束, pages是剩下的页的开始
+    pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
+
+    for (size_t i = 0; i < npage - nbase; i++) {
+        SetPageReserved(pages + i);
+    }
+
+    uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
+
+    mem_begin = ROUNDUP(freemem, PGSIZE);
+    mem_end = ROUNDDOWN(mem_end, PGSIZE);
+    if (freemem < mem_end) {
+        slub_pmm_manager.init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
+    }
+}
+
+void pmm_init_byte(){
+    cprintf("memory management: %s\n",slub_pmm_manager.name);
+    slub_pmm_manager.init();
+    page_init();
+    slub_pmm_manager.check();
+    extern char boot_page_table_sv39[];
+    cprintf("satp virtual address: 0x%016lx\nsatp physical address: 0x%016lx\n",(pte_t*)boot_page_table_sv39, PADDR((pte_t*)boot_page_table_sv39));
+}
 
