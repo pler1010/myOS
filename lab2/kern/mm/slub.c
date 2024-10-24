@@ -191,6 +191,9 @@ slub_alloc_mem_(int post,size_t n){
     if(page_here[post]==NULL){
         page_here[post]=slub_alloc_pages(1);
         list_init(&memList[post].memLink);
+        (mem+post*PAGESIZE)->page=page_here[post];
+        (mem+post*PAGESIZE)->offset=0;
+        (mem+post*PAGESIZE)->size=4096;
         list_add(&memList[post].memLink,&(mem+post*PAGESIZE)->memLink);
     }
     struct memForUser *mem=NULL;
@@ -207,6 +210,7 @@ slub_alloc_mem_(int post,size_t n){
         list_del(&(mem->memLink));
         if(mem->size>n){
             struct memForUser *p=mem+n;
+            p->page=mem->page;
             p->offset=mem->offset+n;
             p->size=mem->size-n;
             list_add(prev,&(p->memLink));
