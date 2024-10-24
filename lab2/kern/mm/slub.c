@@ -126,8 +126,6 @@ slub_free_pages(struct Page *base, size_t n) {
         }
     }
 }
-/****
- */
 
 struct memForUser{
     struct Page *page;
@@ -138,7 +136,7 @@ struct memForUser{
 
 struct Page *page_here[MAXSPLITPAGE];
 struct memForUser memList[MAXSPLITPAGE];
-struct memForUser mem[MAXSPLITPAGE*PAGESIZE];
+struct memForUser Mem[MAXSPLITPAGE*PAGESIZE];
 
 static void
 slub_free_mem_(struct memForUser *list,struct memForUser *base,size_t n){
@@ -148,13 +146,15 @@ slub_free_mem_(struct memForUser *list,struct memForUser *base,size_t n){
     } else {
         list_entry_t* le=&list->memLink;
         while((le=list_next(le))!=&list->memLink){
-            le-&(((struct memForUser *)(NULL))->memLink);
             struct memForUser *mem=to_struct(le,struct memForUser,memLink);
             if(base < mem){
                 list_add_before(le, &(base->memLink));
                 break;
             }
-            else if(list_next(le)==&list->memLink) list_add(le,&(base->memLink));
+            else if(list_next(le)==&list->memLink){
+                list_add(le,&(base->memLink));
+                break;
+            }
         }
     }
     list_entry_t* le =list_prev(&(base->memLink));
@@ -191,10 +191,10 @@ slub_alloc_mem_(int post,size_t n){
     if(page_here[post]==NULL){
         page_here[post]=slub_alloc_pages(1);
         list_init(&memList[post].memLink);
-        (mem+post*PAGESIZE)->page=page_here[post];
-        (mem+post*PAGESIZE)->offset=0;
-        (mem+post*PAGESIZE)->size=4096;
-        list_add(&memList[post].memLink,&(mem+post*PAGESIZE)->memLink);
+        (Mem+post*PAGESIZE)->page=page_here[post];
+        (Mem+post*PAGESIZE)->offset=0;
+        (Mem+post*PAGESIZE)->size=4096;
+        list_add(&memList[post].memLink,&(Mem+post*PAGESIZE)->memLink);
     }
     struct memForUser *mem=NULL;
     list_entry_t *le=&(memList[post].memLink);
@@ -240,8 +240,40 @@ slub_nr_free_pages(void) {
 
 void
 slub_check(){
+    int pageNum=slub_nr_free_pages();
+    struct Page *p=slub_alloc_pages(3);
+    
+    assert(pageNum-3==slub_nr_free_pages());
+
+    slub_free_pages(p,3);
+    
+    assert(pageNum==slub_nr_free_pages());
+    
+    struct memForUser *m1=slub_alloc_mem(2048);
+
+    assert(pageNum-1==slub_nr_free_pages());
+
+    struct memForUser *m2=slub_alloc_mem(2048);
+
+    assert(pageNum-1==slub_nr_free_pages());
+
+    slub_free_mem(m1,2048);
+    slub_free_mem(m2,2048);
+
+    struct memForUser *m3=slub_alloc_mem(3000);
+    assert(pageNum-1==slub_nr_free_pages());
+
+    slub_free_mem(m3,3000);
+
     cprintf("check_alloc succeeded!\n");
 }
+
+
+/*
+以上是一种面向字节数的分配内存算法
+--------------------------------------------------进一步扩展其他面向字节分配内存的算法需要在这里分割文件
+以下是框架修改/补全
+*/
 
 struct pmm_byte_manager{
     const char *name;
@@ -268,10 +300,6 @@ const struct pmm_byte_manager slub_pmm_manager = {
     .alloc_mem = slub_alloc_mem,
     .free_mem = slub_free_mem
 };
-
-/*
---------------------------------------------------
-*/
 
 static void page_init(void) {
     va_pa_offset = PHYSICAL_MEMORY_OFFSET;
