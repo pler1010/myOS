@@ -6,16 +6,41 @@
 #include <swap_lru.h>
 #include <list.h>
 list_entry_t lru_pra_list_head;
+list_entry_t temp_list;
+
+void _lru_keeping(struct mm_struct *mm){
+    list_entry_t *head=(list_entry_t*) mm->sm_priv;
+    list_entry_t *le=head;
+    while((le=list_next(le))!=head){
+        pte_t *pte=get_pte(mm->pgdir,le2page(le,pra_vaddr),0);
+        if(*pte&PTE_A){
+            list_entry_t *temp=le;
+            le=list_prev(le);
+            list_del(temp);
+            *pte^=PTE_A;
+            list_add(&temp_list,le);
+        }
+    }
+    le=&temp_list;
+    while(list_empty(le)){
+        list_entry_t *temp=list_next(le);
+        list_del(temp);
+        list_add(head,temp);
+    }
+}
+
 static int
 _lru_init_mm(struct mm_struct *mm)
 {     
-     list_init(&lru_pra_list_head);
-     mm->sm_priv = &lru_pra_list_head;
-     return 0;
+    list_init(&lru_pra_list_head);
+    mm->sm_priv = &lru_pra_list_head;
+    return 0;
 }
 static int
 _lru_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in)
 {
+    _lru_keeping(mm);
+
     list_entry_t *head=(list_entry_t*) mm->sm_priv;
     list_entry_t *entry=&(page->pra_page_link);
  
@@ -26,6 +51,8 @@ _lru_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int 
 static int
 _lru_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
 {
+    _lru_keeping(mm);
+
      list_entry_t *head=(list_entry_t*) mm->sm_priv;
          assert(head != NULL);
      assert(in_tick==0);
@@ -85,18 +112,23 @@ _lru_check_swap(void) {
 static int
 _lru_init(void)
 {
+    list_init(&temp_list);
     return 0;
 }
 
 static int
 _lru_set_unswappable(struct mm_struct *mm, uintptr_t addr)
 {
+    _lru_keeping(mm);
     return 0;
 }
 
 static int
 _lru_tick_event(struct mm_struct *mm)
-{ return 0; }
+{
+    _lru_keeping(mm);
+    return 0;
+}
 
 
 struct swap_manager swap_manager_lru =
@@ -104,7 +136,7 @@ struct swap_manager swap_manager_lru =
      .name            = "lru swap manager",
      .init            = &_lru_init,
      .init_mm         = &_lru_init_mm,
-     .tick_event      = &_lru_tick_event,
+     .tick_event      = &_lru_tick_event,//如果使用该算法，每次时钟中断需要调用该函数
      .map_swappable   = &_lru_map_swappable,
      .set_unswappable = &_lru_set_unswappable,
      .swap_out_victim = &_lru_swap_out_victim,

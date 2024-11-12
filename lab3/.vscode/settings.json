@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "defs.h": "c",
+        "*.tcc": "cpp",
+        "ostream": "cpp",
+        "swap_lru.h": "c"
+    }
+}
