@@ -53,7 +53,8 @@ _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, in
     // link the most recent arrival page at the back of the pra_list_head qeueue.
     // 将页面page插入到页面链表pra_list_head的末尾(利用双向链表操作)
     list_add(head->prev, entry);
-    page->visited = 1;
+
+    // 初始：Access位置0
     return 0;
 }
 /*
@@ -84,15 +85,15 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick
         // 一圈全是1，再次进入while，循环逻辑正确
         while ((le = list_next(le)) != head)
         {
-            // 直接获取le对应pra_vaddr
             struct Page *page = le2page(le, pra_page_link);
-            // visited = 1，visited置为0，不改变链表中位置
-            if (page->visited)
-                page->visited = 0;
-            // visited = 0，可以滚蛋了
+            pte_t *pte = get_pte(mm->pgdir, page->pra_vaddr, 0);
+            // access = 1，access置为0，不改变链表中位置
+            if (*pte & PTE_A)
+                *pte &= ~PTE_A;
+            // access = 0，可以滚蛋了
             else
             {
-                *ptr_page = page;
+                *ptr_page = le2page(le, pra_page_link);
                 list_del(le);
                 cprintf("curr_ptr %p\n", le);
                 return 0;

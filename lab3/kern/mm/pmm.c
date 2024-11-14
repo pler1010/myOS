@@ -373,8 +373,8 @@ struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm) {
             return NULL;
         }
         if (swap_init_ok) {
-            swap_map_swappable(check_mm_struct, la, page, 0);
             page->pra_vaddr = la;
+            swap_map_swappable(check_mm_struct, la, page, 0);
             assert(page_ref(page) == 1);
             // cprintf("get No. %d  page: pra_vaddr %x, pra_link.prev %x,
             // pra_link_next %x in pgdir_alloc_page\n", (page-pages),
