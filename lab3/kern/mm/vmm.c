@@ -359,7 +359,6 @@ volatile unsigned int pgfault_num = 0;
  */
 int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
 {
-    cprintf("cuowu de dizhi : %x\n", addr);
     int ret = -E_INVAL;
     // try to find a vma which include addr
     struct vma_struct *vma = find_vma(mm, addr);
@@ -456,10 +455,8 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
                 goto failed;
             }
             // (3) 设置页面可交换，并记录虚拟地址 addr
-            cprintf("~%d~\n",page->pra_vaddr);
             page->pra_vaddr = addr;
             swap_map_swappable(mm, addr, page, 1);
-            
         }
         else
         {
