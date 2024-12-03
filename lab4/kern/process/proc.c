@@ -102,7 +102,10 @@ alloc_proc(void) {
      *       uint32_t flags;                             // Process flag
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
-
+        memset(proc,0,sizeof(struct proc_struct));
+        proc->state=PROC_UNINIT;
+        proc->pid=-1;
+        proc->cr3=boot_cr3;
 
     }
     return proc;
