@@ -335,67 +335,89 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
         d0start = d1start;
     } while (d1start != 0 && d1start < end);
 }
+
 /* copy_range - copy content of memory (start, end) of one process A to another
  * process B
+ *
  * @to:    the addr of process B's Page Directory
  * @from:  the addr of process A's Page Directory
- * @share: flags to indicate to dup OR share. We just use dup method, so it
- * didn't be used.
+ * @share: flags to indicate whether to duplicate or share pages. This parameter
+ *         is not used in this implementation, as we only perform duplication.
  *
- * CALL GRAPH: copy_mm-->dup_mmap-->copy_range
+ * CALL GRAPH: copy_mm --> dup_mmap --> copy_range
  */
+//输入：页目录表；虚拟地址范围（相同范围），目标是将父进程内存空间复制给子进程内存空间
 int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
                bool share) {
+    // 确保起始地址和结束地址对齐到页大小（PGSIZE）。
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    // 验证内存范围在用户可访问空间内。
     assert(USER_ACCESS(start, end));
-    // copy content by page unit.
+
+    // 按页逐步遍历内存范围 [start, end)。
     do {
-        // call get_pte to find process A's pte according to the addr start
+        // 获取进程 A 中当前虚拟地址 `start` 对应的页表项（pte）。
+        // 如果没有页表项，说明该页未映射，跳过此段。
         pte_t *ptep = get_pte(from, start, 0), *nptep;
         if (ptep == NULL) {
+            // 跳到下一个页目录项（跳过 PTSIZE 字节）。
             start = ROUNDDOWN(start + PTSIZE, PTSIZE);
             continue;
         }
-        // call get_pte to find process B's pte according to the addr start. If
-        // pte is NULL, just alloc a PT
+
+        // 如果进程 A 的当前页有效（PTE_V），则复制该页。
         if (*ptep & PTE_V) {
+            // 获取或分配进程 B 中同一虚拟地址的页表项。
             if ((nptep = get_pte(to, start, 1)) == NULL) {
+                // 如果分配内存失败，返回错误码。
                 return -E_NO_MEM;
             }
+
+            // 从进程 A 的页表项中提取权限位。
             uint32_t perm = (*ptep & PTE_USER);
-            // get page from ptep
+
+            // 获取与进程 A 页表项对应的物理页。
             struct Page *page = pte2page(*ptep);
-            // alloc a page for process B
+            // 为进程 B 分配一个新的物理页。
             struct Page *npage = alloc_page();
+
+            // 确保源页和目标页均有效。
             assert(page != NULL);
             assert(npage != NULL);
-            int ret = 0;
-            /* LAB5:EXERCISE2 YOUR CODE
-             * replicate content of page to npage, build the map of phy addr of
-             * nage with the linear addr start
+
+            int ret = 0; // 用于存储 page_insert 的返回值。
+
+            /*
+             * LAB5:EXERCISE2 - 将源页内容复制到新页，并在进程 B 的页表中建立映射。
              *
-             * Some Useful MACROs and DEFINEs, you can use them in below
-             * implementation.
-             * MACROs or Functions:
-             *    page2kva(struct Page *page): return the kernel vritual addr of
-             * memory which page managed (SEE pmm.h)
-             *    page_insert: build the map of phy addr of an Page with the
-             * linear addr la
-             *    memcpy: typical memory copy function
-             *
-             * (1) find src_kvaddr: the kernel virtual address of page
-             * (2) find dst_kvaddr: the kernel virtual address of npage
-             * (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
-             * (4) build the map of phy addr of  nage with the linear addr start
+             * 实现步骤：
+             * 1. 使用 `page2kva` 获取源页的内核虚拟地址。
+             * 2. 使用 `page2kva` 获取目标页的内核虚拟地址。
+             * 3. 使用 `memcpy` 将数据从源页复制到目标页。
+             * 4. 使用 `page_insert` 将新页插入进程 B 的页表中。
              */
 
+            // (1) 获取源页的内核虚拟地址。
+            void *src_kvaddr = page2kva(page);
+            // (2) 获取目标页的内核虚拟地址。
+            void *dst_kvaddr = page2kva(npage);
+            // (3) 将源页的内容复制到目标页。
+            memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
+            // (4) 使用相同权限将新页插入进程 B 的页表。
+            ret = page_insert(to, npage, start, perm);
 
+            // 确保映射操作成功。
             assert(ret == 0);
         }
+
+        // 移动到下一页。
         start += PGSIZE;
-    } while (start != 0 && start < end);
+    } while (start != 0 && start < end); // 循环处理范围内的所有页。
+
+    // 返回 0 表示复制成功。
     return 0;
 }
+
 
 // page_remove - free an Page which is related linear address la and has an
 // validated pte
