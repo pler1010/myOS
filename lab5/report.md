@@ -94,3 +94,56 @@ static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
     }
 }
 ```
+
+### 执行轨迹分析
+
+```c
+void cpu_idle(void)
+{
+    while (1)
+    {
+        if (current->need_resched)
+        {
+            schedule();
+        }
+    }
+}
+```
+
+该位置首次调用schedule后，调用后依次`proc_run->switch_to->kernel_thread_entry->init_main`。
+
+```c
+static int
+init_main(void *arg)
+{
+    size_t nr_free_pages_store = nr_free_pages(); // 获取当前系统的空闲页面数量
+    size_t kernel_allocated_store = kallocated(); // 获取当前系统的空闲页面数量
+
+    int pid = kernel_thread(user_main, NULL, 0); // 创建内核进程执行用户进程
+    if (pid <= 0)
+    { // 线程创建失败
+        panic("create user_main failed.\n");
+    }
+
+    while (do_wait(0, NULL) == 0)
+    {               // 等待进程推出
+        schedule(); // 切换执行其他可运行进程
+    }
+
+    cprintf("all user-mode processes have quit.\n");
+    assert(initproc->cptr == NULL && initproc->yptr == NULL && initproc->optr == NULL);
+    assert(nr_process == 2);
+    assert(list_next(&proc_list) == &(initproc->list_link));
+    assert(list_prev(&proc_list) == &(initproc->list_link));
+
+    cprintf("init check memory pass.\n");
+    return 0;
+}
+```
+
+这个进程创建了一个新的内核进程`user_main`，然后就等所有进程执行结束后它才再次活跃，否则轮到它就继续`schedule`，它退出时会执行panic，操作系统关闭。
+
+`user_main`只是开启了一个用户进程，使用`kernel_execve`，实际上就是把自己“变成”另一个进程。
+
+接下来不断`wait`，直到所有进程执行完成，`init_main`停止，触发`panic`
+
